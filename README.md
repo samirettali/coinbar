@@ -4,7 +4,13 @@ Minimal macOS menu bar app that shows live Binance prices for a few tokens.
 
 ## Screenshot
 
-![Coinbar screenshot](./coinbar.png)
+Menu bar:
+
+![Coinbar menu bar screenshot](./coinbar.png)
+
+Popup:
+
+![Coinbar popup screenshot](./popup.png)
 
 ## What it does
 
