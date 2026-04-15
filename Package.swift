@@ -9,7 +9,11 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "Coinbar",
-            path: "Sources"
+            path: "Sources/Coinbar"
+        ),
+        .executableTarget(
+            name: "Zonebar",
+            path: "Sources/Zonebar"
         ),
     ]
 )

@@ -39,7 +39,7 @@
 		};
 		A1B2C3D40100000400000002 /* Sources */ = {
 			isa = PBXGroup;
-			path = Sources;
+			path = Sources/Coinbar;
 			sourceTree = "<group>";
 			children = (
 				A1B2C3D40100000200000001 /* AppFont.swift */,

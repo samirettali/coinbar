@@ -4,35 +4,39 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="$ROOT_DIR/build"
-ARCHIVE_DIR="$BUILD_DIR/archive"
 EXPORT_DIR="$BUILD_DIR/export"
-APP_NAME="Coinbar.app"
-ZIP_NAME="Coinbar-macOS-unsigned.zip"
+DERIVED_DATA_DIR="$BUILD_DIR/DerivedData"
+SCHEMES=(Coinbar Zonebar)
 
-rm -rf "$ARCHIVE_DIR" "$EXPORT_DIR"
-mkdir -p "$ARCHIVE_DIR" "$EXPORT_DIR"
+rm -rf "$EXPORT_DIR" "$DERIVED_DATA_DIR"
+mkdir -p "$EXPORT_DIR"
 
-xcodebuild \
-  -project "$ROOT_DIR/Coinbar.xcodeproj" \
-  -scheme Coinbar \
-  -configuration Release \
-  -derivedDataPath "$BUILD_DIR/DerivedData" \
-  CODE_SIGNING_ALLOWED=NO \
-  CODE_SIGNING_REQUIRED=NO \
-  build
+for scheme in "$SCHEMES[@]"; do
+  app_name="$scheme.app"
+  zip_name="$scheme-macOS-unsigned.zip"
 
-APP_PATH="$BUILD_DIR/DerivedData/Build/Products/Release/$APP_NAME"
+  xcodebuild \
+    -project "$ROOT_DIR/Coinbar.xcodeproj" \
+    -scheme "$scheme" \
+    -configuration Release \
+    -derivedDataPath "$DERIVED_DATA_DIR" \
+    CODE_SIGNING_ALLOWED=NO \
+    CODE_SIGNING_REQUIRED=NO \
+    build
 
-if [[ ! -d "$APP_PATH" ]]; then
-  echo "Expected app bundle not found at: $APP_PATH" >&2
-  exit 1
-fi
+  app_path="$DERIVED_DATA_DIR/Build/Products/Release/$app_name"
 
-cp -R "$APP_PATH" "$EXPORT_DIR/$APP_NAME"
+  if [[ ! -d "$app_path" ]]; then
+    echo "Expected app bundle not found at: $app_path" >&2
+    exit 1
+  fi
 
-ditto -c -k --sequesterRsrc --keepParent \
-  "$EXPORT_DIR/$APP_NAME" \
-  "$BUILD_DIR/$ZIP_NAME"
+  cp -R "$app_path" "$EXPORT_DIR/$app_name"
 
-echo "Built app: $EXPORT_DIR/$APP_NAME"
-echo "Created archive: $BUILD_DIR/$ZIP_NAME"
+  ditto -c -k --sequesterRsrc --keepParent \
+    "$EXPORT_DIR/$app_name" \
+    "$BUILD_DIR/$zip_name"
+
+  echo "Built app: $EXPORT_DIR/$app_name"
+  echo "Created archive: $BUILD_DIR/$zip_name"
+done

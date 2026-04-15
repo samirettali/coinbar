@@ -26,5 +26,7 @@ jobs:
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: build/Coinbar-macOS-unsigned.zip
+          files: |
+            build/Coinbar-macOS-unsigned.zip
+            build/Zonebar-macOS-unsigned.zip
           generate_release_notes: true

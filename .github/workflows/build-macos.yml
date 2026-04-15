@@ -21,14 +21,26 @@ jobs:
       - name: Build unsigned app
         run: ./scripts/build-release.sh
 
-      - name: Upload app bundle
+      - name: Upload Coinbar app bundle
         uses: actions/upload-artifact@v4
         with:
           name: Coinbar.app
           path: build/export/Coinbar.app
 
-      - name: Upload zipped release artifact
+      - name: Upload Zonebar app bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zonebar.app
+          path: build/export/Zonebar.app
+
+      - name: Upload Coinbar zipped release artifact
         uses: actions/upload-artifact@v4
         with:
           name: Coinbar-macOS-unsigned
           path: build/Coinbar-macOS-unsigned.zip
+
+      - name: Upload Zonebar zipped release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zonebar-macOS-unsigned
+          path: build/Zonebar-macOS-unsigned.zip
