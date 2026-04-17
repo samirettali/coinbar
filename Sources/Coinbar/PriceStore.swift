@@ -113,7 +113,7 @@ final class PriceStore: ObservableObject {
     var menuBarTitle: String {
         let parts = symbols.filter { visibleSymbols.contains($0.symbol) }.map { symbol in
             let value = prices[symbol.symbol]?.formattedPrice ?? "--"
-            return "\(shortSymbol(for: symbol.symbol)) \(value)"
+            return "\(shortSymbol(for: symbol.symbol))\(value)"
         }
 
         return parts.isEmpty ? "Coinbar" : parts.joined(separator: "  ")
