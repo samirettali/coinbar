@@ -33,7 +33,7 @@ struct PriceSnapshot {
     let changePercent: Double
 
     var formattedPrice: String {
-        CurrencyFormatter.shared.string(from: lastPrice as NSNumber) ?? "--"
+        PriceFormatter.string(from: lastPrice) ?? "--"
     }
 
     var formattedPercent: String {
@@ -116,7 +116,7 @@ final class PriceStore: ObservableObject {
             return "\(shortSymbol(for: symbol.symbol)) \(value)"
         }
 
-        return parts.isEmpty ? "Coinbar" : parts.joined(separator: "  ")
+        return parts.isEmpty ? "Coinbar" : parts.joined(separator: " | ")
     }
 
     func start() {
@@ -387,13 +387,16 @@ private struct BinanceTickerPayload: Decodable, Sendable {
     }
 }
 
-private enum CurrencyFormatter {
-    static let shared: NumberFormatter = {
+private enum PriceFormatter {
+    static func string(from value: Double) -> String? {
         let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = "USD"
+        formatter.numberStyle = .decimal
         formatter.maximumFractionDigits = 2
         formatter.minimumFractionDigits = 2
-        return formatter
-    }()
+        formatter.groupingSeparator = ""
+        formatter.decimalSeparator = "."
+        formatter.positivePrefix = "$"
+        formatter.negativePrefix = "-$"
+        return formatter.string(from: value as NSNumber)
+    }
 }

@@ -55,7 +55,7 @@ final class TimeZoneStore: ObservableObject {
             "\(shortName(for: zone)) \(timeText(for: zone.identifier))"
         }
 
-        return parts.isEmpty ? "Zonebar" : parts.joined(separator: "  ")
+        return parts.isEmpty ? "Zonebar" : parts.joined(separator: " | ")
     }
 
     func start() {
