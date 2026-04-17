@@ -26,7 +26,7 @@ struct MenuContentView: View {
                     Text("Tracked Symbols")
                         .font(AppFont.uiFont(size: 12, weight: .semibold))
 
-                    Text("One Binance symbol per line")
+                    Text("One Binance spot or futures symbol per line")
                         .font(AppFont.uiFont(size: 11))
                         .foregroundStyle(.secondary)
 
