@@ -21,35 +21,52 @@ struct SettingsView: View {
             }
 
             VStack(spacing: 10) {
-                HStack {
-                    Text("Separator")
-                        .font(AppFont.uiFont(size: 12))
-                    Spacer()
-                    TextField("none", text: Binding(
-                        get: { store.menuBarSeparator },
-                        set: { store.setMenuBarSeparator($0) }
-                    ))
-                    .font(AppFont.uiFont(size: 12))
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 70)
-                }
-
-                HStack {
-                    Text("Padding")
-                        .font(AppFont.uiFont(size: 12))
-                    Spacer()
-                    Stepper(
-                        value: Binding(
-                            get: { store.menuBarPadding },
-                            set: { store.setMenuBarPadding($0) }
-                        ),
-                        in: 0...8
-                    ) {
-                        Text("\(store.menuBarPadding) space\(store.menuBarPadding == 1 ? "" : "s")")
+                    HStack {
+                        Text("Divider")
                             .font(AppFont.uiFont(size: 12))
-                            .frame(minWidth: 55, alignment: .trailing)
+                        Spacer()
+                        TextField("none", text: Binding(
+                            get: { store.menuBarDivider },
+                            set: { store.setMenuBarDivider($0) }
+                        ))
+                        .font(AppFont.uiFont(size: 12))
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 70)
                     }
-                }
+
+                    HStack {
+                        Text("Gap")
+                            .font(AppFont.uiFont(size: 12))
+                        Spacer()
+                        Stepper(
+                            value: Binding(
+                                get: { store.menuBarGap },
+                                set: { store.setMenuBarGap($0) }
+                            ),
+                            in: 0...8
+                        ) {
+                            Text("\(store.menuBarGap) space\(store.menuBarGap == 1 ? "" : "s")")
+                                .font(AppFont.uiFont(size: 12))
+                                .frame(minWidth: 55, alignment: .trailing)
+                        }
+                    }
+
+                    HStack {
+                        Text("Separator width")
+                            .font(AppFont.uiFont(size: 12))
+                        Spacer()
+                        Stepper(
+                            value: Binding(
+                                get: { store.menuBarSeparatorWidth },
+                                set: { store.setMenuBarSeparatorWidth($0) }
+                            ),
+                            in: 0...20
+                        ) {
+                            Text("\(store.menuBarSeparatorWidth) space\(store.menuBarSeparatorWidth == 1 ? "" : "s")")
+                                .font(AppFont.uiFont(size: 12))
+                                .frame(minWidth: 55, alignment: .trailing)
+                        }
+                    }
             }
         }
     }

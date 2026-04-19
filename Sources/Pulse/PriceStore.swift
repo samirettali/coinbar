@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import OSLog
 import SwiftUI
+import Yams
 
 private let hyperliquidLogger = Logger(subsystem: "crypto-tracker", category: "hyperliquid")
 
@@ -212,6 +213,35 @@ private struct HyperliquidMarketSnapshot: Sendable {
     let spotAliases: [String: String]
 }
 
+private struct ConfigItem: Codable {
+    var type: String
+    var value: String?
+    var label: String?
+    var visible: Bool?
+}
+
+private struct PulseConfig: Codable {
+    var items: [ConfigItem] = []
+    var divider: String = ""
+    var gap: Int = 3
+    var separatorWidth: Int = 6
+
+    init(items: [ConfigItem] = [], divider: String = "", gap: Int = 3, separatorWidth: Int = 6) {
+        self.items = items
+        self.divider = divider
+        self.gap = gap
+        self.separatorWidth = separatorWidth
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        items = (try? c.decodeIfPresent([ConfigItem].self, forKey: .items)) ?? []
+        divider = (try? c.decodeIfPresent(String.self, forKey: .divider)) ?? ""
+        gap = (try? c.decodeIfPresent(Int.self, forKey: .gap)) ?? 3
+        separatorWidth = (try? c.decodeIfPresent(Int.self, forKey: .separatorWidth)) ?? 6
+    }
+}
+
 @MainActor
 final class PriceStore: ObservableObject {
     @Published private(set) var prices: [String: PriceSnapshot] = [:]
@@ -220,15 +250,10 @@ final class PriceStore: ObservableObject {
     @Published private(set) var symbols: [TrackedSymbol]
     @Published private(set) var visibleSymbols: Set<String>
 
-    private let defaults = UserDefaults.standard
-    private let symbolsKey = "trackedSymbols"
-    private let visibleSymbolsKey = "visibleMenuBarSymbols"
-    private let customNamesKey = "customNames"
-    private let menuBarSeparatorKey = "menuBarSeparator"
-    private let menuBarPaddingKey = "menuBarPadding"
     @Published private(set) var customNames: [String: String] = [:]
-    @Published private(set) var menuBarSeparator: String = ""
-    @Published private(set) var menuBarPadding: Int = 1
+    @Published private(set) var menuBarDivider: String = ""
+    @Published private(set) var menuBarGap: Int = 3
+    @Published private(set) var menuBarSeparatorWidth: Int = 6
 
     private var streamTask: Task<Void, Never>?
     private var clockTask: Task<Void, Never>?
@@ -237,40 +262,103 @@ final class PriceStore: ObservableObject {
     private var xyzPerpPrevDayPrices: [String: Double] = [:]
     @Published private(set) var now = Date()
 
-    init(symbols: [TrackedSymbol]) {
-        let persisted = Self.loadSymbols(defaults: UserDefaults.standard, key: symbolsKey)
-        let resolvedSymbols = persisted.isEmpty ? symbols : persisted
-        let persistedVisible = Self.loadVisibleSymbols(defaults: UserDefaults.standard, key: visibleSymbolsKey)
+    private static let configURL: URL = FileManager.default
+        .homeDirectoryForCurrentUser
+        .appendingPathComponent(".config/pulse/config.yaml")
 
+    private static func loadConfig() -> PulseConfig {
+        guard let yaml = try? String(contentsOf: configURL, encoding: .utf8) else { return PulseConfig() }
+        return (try? YAMLDecoder().decode(PulseConfig.self, from: yaml)) ?? PulseConfig()
+    }
+
+    private func saveConfig() {
+        let items: [ConfigItem] = symbols.map { symbol in
+            ConfigItem(
+                type: symbol.provider.rawValue,
+                value: symbol.provider == .spacer ? nil : symbol.symbol,
+                label: customNames[symbol.id],
+                visible: symbol.provider == .spacer || symbol.provider == .label
+                    ? nil
+                    : visibleSymbols.contains(symbol.id)
+            )
+        }
+        let config = PulseConfig(
+            items: items,
+            divider: menuBarDivider,
+            gap: menuBarGap,
+            separatorWidth: menuBarSeparatorWidth
+        )
+        do {
+            let dir = Self.configURL.deletingLastPathComponent()
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let yaml = try YAMLEncoder().encode(config)
+            try yaml.write(to: Self.configURL, atomically: true, encoding: .utf8)
+        } catch {
+            // config directory or write failed — settings won't persist this session
+        }
+    }
+
+    private static func unpackConfig(_ config: PulseConfig) -> (
+        symbols: [TrackedSymbol],
+        visibleSymbols: Set<String>,
+        customNames: [String: String]
+    ) {
+        var symbols: [TrackedSymbol] = []
+        var visibleSymbols: Set<String> = []
+        var customNames: [String: String] = [:]
+
+        for item in config.items {
+            let token = item.type == "spacer"
+                ? "spacer:\(UUID().uuidString)"
+                : "\(item.type):\(item.value ?? "")"
+            guard let symbol = TrackedSymbol(token: token) else { continue }
+            symbols.append(symbol)
+            if item.visible == true { visibleSymbols.insert(symbol.id) }
+            if let label = item.label, !label.isEmpty { customNames[symbol.id] = label }
+        }
+
+        return (symbols, visibleSymbols, customNames)
+    }
+
+    init(symbols defaultSymbols: [TrackedSymbol]) {
+        let config = Self.loadConfig()
+        let unpacked = Self.unpackConfig(config)
+
+        let resolvedSymbols = unpacked.symbols.isEmpty ? defaultSymbols : unpacked.symbols
         self.symbols = resolvedSymbols
-        self.visibleSymbols = persistedVisible.isEmpty
+        self.visibleSymbols = unpacked.visibleSymbols.isEmpty
             ? Set(resolvedSymbols.prefix(2).map { $0.id })
-            : persistedVisible.intersection(Set(resolvedSymbols.map { $0.id }))
-        self.customNames = (defaults.dictionary(forKey: customNamesKey) as? [String: String]) ?? [:]
-        self.menuBarSeparator = defaults.string(forKey: menuBarSeparatorKey) ?? ""
-        self.menuBarPadding = defaults.object(forKey: menuBarPaddingKey) != nil ? defaults.integer(forKey: menuBarPaddingKey) : 1
+            : unpacked.visibleSymbols.intersection(Set(resolvedSymbols.map { $0.id }))
+        self.customNames = unpacked.customNames
+        self.menuBarDivider = config.divider
+        self.menuBarGap = config.gap
+        self.menuBarSeparatorWidth = config.separatorWidth
 
         start()
-
     }
 
     func displayName(for symbol: TrackedSymbol) -> String {
         customNames[symbol.id] ?? symbol.displayName
     }
 
-    func setMenuBarSeparator(_ separator: String) {
-        menuBarSeparator = separator
-        defaults.set(separator, forKey: menuBarSeparatorKey)
+    func setMenuBarDivider(_ separator: String) {
+        menuBarDivider = separator
+        saveConfig()
     }
 
-    func setMenuBarPadding(_ padding: Int) {
-        menuBarPadding = max(0, padding)
-        defaults.set(menuBarPadding, forKey: menuBarPaddingKey)
+    func setMenuBarGap(_ padding: Int) {
+        menuBarGap = max(0, padding)
+        saveConfig()
+    }
+
+    func setMenuBarSeparatorWidth(_ width: Int) {
+        menuBarSeparatorWidth = max(0, width)
+        saveConfig()
     }
 
     private var menuBarJoinString: String {
-        let pad = String(repeating: " ", count: menuBarPadding)
-        return menuBarSeparator.isEmpty ? pad : pad + menuBarSeparator + pad
+        let pad = String(repeating: " ", count: menuBarGap)
+        return menuBarDivider.isEmpty ? pad : pad + menuBarDivider + pad
     }
 
     func renameSymbol(id: String, newName: String) {
@@ -280,7 +368,7 @@ final class PriceStore: ObservableObject {
         } else {
             customNames[id] = trimmed
         }
-        defaults.set(customNames, forKey: customNamesKey)
+        saveConfig()
     }
 
     var menuBarTitle: String {
@@ -307,7 +395,7 @@ final class PriceStore: ObservableObject {
             if result.isEmpty {
                 result = text
             } else if pendingSpacer {
-                result += String(repeating: " ", count: 6) + text
+                result += String(repeating: " ", count: menuBarSeparatorWidth) + text
             } else {
                 result += menuBarJoinString + text
             }
@@ -385,22 +473,20 @@ final class PriceStore: ObservableObject {
         }
         resolvedBinanceMarkets = resolvedBinanceMarkets.filter { validSymbolIDs.contains($0.key) }
         lastUpdated = nil
-        defaults.set(parsed.map(\.storageValue), forKey: symbolsKey)
-        defaults.set(Array(visibleSymbols), forKey: visibleSymbolsKey)
+        saveConfig()
         restart()
     }
 
     func moveSymbol(from source: IndexSet, to destination: Int) {
         symbols.move(fromOffsets: source, toOffset: destination)
-        defaults.set(symbols.map(\.storageValue), forKey: symbolsKey)
+        saveConfig()
     }
 
     func addSpacer() {
         let symbol = TrackedSymbol(provider: .spacer, symbol: UUID().uuidString)
         symbols.append(symbol)
         visibleSymbols.insert(symbol.id)
-        defaults.set(symbols.map(\.storageValue), forKey: symbolsKey)
-        defaults.set(Array(visibleSymbols), forKey: visibleSymbolsKey)
+        saveConfig()
     }
 
     func addLabel(text: String) {
@@ -409,7 +495,7 @@ final class PriceStore: ObservableObject {
         let symbol = TrackedSymbol(provider: .label, symbol: trimmed)
         guard !symbols.contains(where: { $0.id == symbol.id }) else { return }
         symbols.append(symbol)
-        defaults.set(symbols.map(\.storageValue), forKey: symbolsKey)
+        saveConfig()
     }
 
     /// Returns true if the symbol was added, false if the token is invalid or already tracked.
@@ -420,8 +506,7 @@ final class PriceStore: ObservableObject {
               !symbols.contains(where: { $0.id == symbol.id }) else { return false }
         symbols.append(symbol)
         visibleSymbols.insert(symbol.id)
-        defaults.set(symbols.map(\.storageValue), forKey: symbolsKey)
-        defaults.set(Array(visibleSymbols), forKey: visibleSymbolsKey)
+        saveConfig()
         restart()
         return true
     }
@@ -431,8 +516,7 @@ final class PriceStore: ObservableObject {
         prices.removeValue(forKey: id)
         visibleSymbols.remove(id)
         resolvedBinanceMarkets.removeValue(forKey: id)
-        defaults.set(symbols.map(\.storageValue), forKey: symbolsKey)
-        defaults.set(Array(visibleSymbols), forKey: visibleSymbolsKey)
+        saveConfig()
         restart()
     }
 
@@ -446,8 +530,7 @@ final class PriceStore: ObservableObject {
         } else {
             visibleSymbols.remove(symbol.id)
         }
-
-        defaults.set(Array(visibleSymbols), forKey: visibleSymbolsKey)
+        saveConfig()
     }
 
     private func runConnectionLoop() async {
@@ -912,18 +995,6 @@ final class PriceStore: ObservableObject {
         }
 
         return HyperliquidWebSocketMessage(channel: channel, data: mids)
-    }
-
-    private static func loadSymbols(defaults: UserDefaults, key: String) -> [TrackedSymbol] {
-        guard let stored = defaults.stringArray(forKey: key) else {
-            return []
-        }
-
-        return stored.compactMap(TrackedSymbol.init(token:))
-    }
-
-    private static func loadVisibleSymbols(defaults: UserDefaults, key: String) -> Set<String> {
-        Set((defaults.stringArray(forKey: key) ?? []).compactMap { TrackedSymbol(token: $0)?.id })
     }
 
     private static func parseSymbols(from input: String) -> [TrackedSymbol] {
