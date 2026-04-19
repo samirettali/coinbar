@@ -283,7 +283,7 @@ final class PriceStore: ObservableObject {
 
     var menuBarTitle: String {
         let visible = symbols.filter { $0.provider == .spacer || ($0.provider != .label && visibleSymbols.contains($0.id)) }
-        if visible.isEmpty { return "Coinbar" }
+        if visible.isEmpty { return "Pulse" }
 
         var result = ""
         var pendingSpacer = false
@@ -312,7 +312,7 @@ final class PriceStore: ObservableObject {
             pendingSpacer = false
         }
 
-        return result.isEmpty ? "Coinbar" : result
+        return result.isEmpty ? "Pulse" : result
     }
 
     func timeText(for identifier: String) -> String {

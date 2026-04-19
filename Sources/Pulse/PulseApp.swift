@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 @main
-struct CoinbarApp: App {
+struct PulseApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var priceStore = PriceStore(symbols: TrackedSymbol.defaults)
 
@@ -30,5 +30,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 extension Notification.Name {
-    static let reconnect = Notification.Name("coinbar.reconnect")
+    static let reconnect = Notification.Name("pulse.reconnect")
 }
