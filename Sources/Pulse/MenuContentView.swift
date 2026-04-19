@@ -447,8 +447,12 @@ private struct WindowPositionPin: NSViewRepresentable {
 
     class PinView: NSView {
         private var moveObserver: NSObjectProtocol?
+        private var resizeObserver: NSObjectProtocol?
         private var showObserver: NSObjectProtocol?
-        private var pinnedOrigin: NSPoint?
+        // Top-left corner in screen coordinates (y increases upward on macOS).
+        // Pinning the top keeps the popup anchored just below the menu bar
+        // and makes it grow downward when content is added.
+        private var pinnedTopLeft: NSPoint?
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
@@ -461,31 +465,46 @@ private struct WindowPositionPin: NSViewRepresentable {
                 queue: .main
             ) { [weak self, weak window] _ in
                 guard let self, let window else { return }
-                MainActor.assumeIsolated { self.pinnedOrigin = nil }
+                MainActor.assumeIsolated { self.pinnedTopLeft = nil }
                 DispatchQueue.main.async { [weak self, weak window] in
                     guard let self, let window else { return }
-                    MainActor.assumeIsolated { self.pinnedOrigin = window.frame.origin }
+                    MainActor.assumeIsolated {
+                        let f = window.frame
+                        self.pinnedTopLeft = NSPoint(x: f.origin.x, y: f.origin.y + f.size.height)
+                    }
+                }
+            }
+
+            let applyPin: @Sendable () -> Void = { [weak self, weak window] in
+                guard let self, let window else { return }
+                let pinned = MainActor.assumeIsolated { self.pinnedTopLeft }
+                guard let pinned else { return }
+                MainActor.assumeIsolated {
+                    let f = window.frame
+                    let target = NSPoint(x: pinned.x, y: pinned.y - f.size.height)
+                    if f.origin != target { window.setFrameOrigin(target) }
                 }
             }
 
             moveObserver = NotificationCenter.default.addObserver(
                 forName: NSWindow.didMoveNotification,
-                object: window,
-                queue: .main
-            ) { [weak self, weak window] _ in
-                guard let self, let window else { return }
-                let origin = MainActor.assumeIsolated { self.pinnedOrigin }
-                guard let origin else { return }
-                MainActor.assumeIsolated { window.setFrameOrigin(origin) }
-            }
+                object: window, queue: .main
+            ) { _ in applyPin() }
+
+            resizeObserver = NotificationCenter.default.addObserver(
+                forName: NSWindow.didResizeNotification,
+                object: window, queue: .main
+            ) { _ in applyPin() }
         }
 
         private func teardown() {
             if let o = moveObserver { NotificationCenter.default.removeObserver(o) }
+            if let o = resizeObserver { NotificationCenter.default.removeObserver(o) }
             if let o = showObserver { NotificationCenter.default.removeObserver(o) }
             moveObserver = nil
+            resizeObserver = nil
             showObserver = nil
-            pinnedOrigin = nil
+            pinnedTopLeft = nil
         }
     }
 }
