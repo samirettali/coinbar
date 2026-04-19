@@ -14,9 +14,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "B2C3D4E50100000500000001"
-               BuildableName = "Zonebar.app"
-               BlueprintName = "Zonebar"
+               BlueprintIdentifier = "A1B2C3D40100000500000001"
+               BuildableName = "Pulse.app"
+               BlueprintName = "Pulse"
                ReferencedContainer = "container:Coinbar.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -44,9 +44,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "B2C3D4E50100000500000001"
-            BuildableName = "Zonebar.app"
-            BlueprintName = "Zonebar"
+            BlueprintIdentifier = "A1B2C3D40100000500000001"
+            BuildableName = "Pulse.app"
+            BlueprintName = "Pulse"
             ReferencedContainer = "container:Coinbar.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -61,9 +61,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "B2C3D4E50100000500000001"
-            BuildableName = "Zonebar.app"
-            BlueprintName = "Zonebar"
+            BlueprintIdentifier = "A1B2C3D40100000500000001"
+            BuildableName = "Pulse.app"
+            BlueprintName = "Pulse"
             ReferencedContainer = "container:Coinbar.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

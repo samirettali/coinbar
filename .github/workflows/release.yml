@@ -27,6 +27,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            build/Coinbar-macOS-unsigned.zip
-            build/Zonebar-macOS-unsigned.zip
+            build/Pulse-macOS-unsigned.zip
           generate_release_notes: true

@@ -21,26 +21,14 @@ jobs:
       - name: Build unsigned app
         run: ./scripts/build-release.sh
 
-      - name: Upload Coinbar app bundle
+      - name: Upload Pulse app bundle
         uses: actions/upload-artifact@v4
         with:
-          name: Coinbar.app
-          path: build/export/Coinbar.app
+          name: Pulse.app
+          path: build/export/Pulse.app
 
-      - name: Upload Zonebar app bundle
+      - name: Upload Pulse zipped release artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Zonebar.app
-          path: build/export/Zonebar.app
-
-      - name: Upload Coinbar zipped release artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Coinbar-macOS-unsigned
-          path: build/Coinbar-macOS-unsigned.zip
-
-      - name: Upload Zonebar zipped release artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Zonebar-macOS-unsigned
-          path: build/Zonebar-macOS-unsigned.zip
+          name: Pulse-macOS-unsigned
+          path: build/Pulse-macOS-unsigned.zip
