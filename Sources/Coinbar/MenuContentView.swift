@@ -15,9 +15,9 @@ struct MenuContentView: View {
                 ForEach(store.symbols) { symbol in
                     rowView(for: symbol)
                         .listRowInsets(EdgeInsets(
-                            top: symbol.provider == .spacer ? 10 : 4,
+                            top: symbol.provider == .spacer ? 2 : 4,
                             leading: 0,
-                            bottom: symbol.provider == .spacer ? 10 : symbol.provider == .label ? 10 : 4,
+                            bottom: symbol.provider == .spacer ? 2 : 4,
                             trailing: 0
                         ))
                         .listRowBackground(Color.clear)
@@ -136,6 +136,8 @@ struct MenuContentView: View {
     private func rowView(for symbol: TrackedSymbol) -> some View {
         if symbol.provider == .spacer {
             Divider()
+                .frame(height: 17)
+                .contentShape(Rectangle())
                 .contextMenu {
                     Button("Delete", role: .destructive) {
                         store.removeSymbol(id: symbol.id)
