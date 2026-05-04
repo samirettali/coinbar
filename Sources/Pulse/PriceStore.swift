@@ -767,6 +767,36 @@ final class PriceStore: ObservableObject {
         return httpResponse.statusCode == 200
     }
 
+    /// Sends a WebSocket ping every `interval` and waits up to `timeout` for the pong.
+    /// Throws if the pong doesn't arrive in time or the connection is already dead.
+    /// This detects silently-dead connections (e.g. NAT timeout, server idle limit)
+    /// that never send a close frame and would otherwise block `receive()` forever.
+    private static func pingLoop(
+        task: URLSessionWebSocketTask,
+        interval: Duration = .seconds(30),
+        timeout: Duration = .seconds(10)
+    ) async throws {
+        while !Task.isCancelled {
+            try await Task.sleep(for: interval)
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                        task.sendPing { error in
+                            if let error { continuation.resume(throwing: error) }
+                            else { continuation.resume() }
+                        }
+                    }
+                }
+                group.addTask {
+                    try await Task.sleep(for: timeout)
+                    throw URLError(.timedOut)
+                }
+                _ = try await group.next()
+                group.cancelAll()
+            }
+        }
+    }
+
     private static func consumeBinanceStream(
         at url: URL,
         onPayload: @escaping @Sendable (BinanceTickerPayload) async -> Void
@@ -778,14 +808,22 @@ final class PriceStore: ObservableObject {
             task.cancel(with: .goingAway, reason: nil)
         }
 
-        while !Task.isCancelled {
-            let message = try await task.receive()
-            let envelope = try decodeTickerPayload(from: message)
-            await onPayload(envelope.data)
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask {
+                while !Task.isCancelled {
+                    let message = try await task.receive()
+                    let envelope = try Self.decodeTickerPayload(from: message)
+                    await onPayload(envelope.data)
+                }
+            }
+            group.addTask {
+                try await Self.pingLoop(task: task)
+            }
+            try await group.waitForAll()
         }
     }
 
-    private static func decodeTickerPayload(from message: URLSessionWebSocketTask.Message) throws -> BinanceCombinedTicker {
+    private nonisolated static func decodeTickerPayload(from message: URLSessionWebSocketTask.Message) throws -> BinanceCombinedTicker {
         let data: Data
 
         switch message {
@@ -921,40 +959,48 @@ final class PriceStore: ObservableObject {
             hyperliquidLogger.info("Subscribed to activeAssetCtx for \(coin, privacy: .public)")
         }
 
-        while !Task.isCancelled {
-            let incoming = try await task.receive()
-            let rawData: Data
-            switch incoming {
-            case .data(let d): rawData = d
-            case .string(let s): rawData = Data(s.utf8)
-            @unknown default: continue
-            }
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask {
+                while !Task.isCancelled {
+                    let incoming = try await task.receive()
+                    let rawData: Data
+                    switch incoming {
+                    case .data(let d): rawData = d
+                    case .string(let s): rawData = Data(s.utf8)
+                    @unknown default: continue
+                    }
 
-            guard let json = try? JSONSerialization.jsonObject(with: rawData) as? [String: Any],
-                  let channel = json["channel"] as? String else { continue }
+                    guard let json = try? JSONSerialization.jsonObject(with: rawData) as? [String: Any],
+                          let channel = json["channel"] as? String else { continue }
 
-            if channel == "allMids" {
-                let envelope = try decodeHyperliquidMessage(from: incoming)
-                if let mids = envelope.data {
-                    hyperliquidLogger.debug("Hyperliquid allMids symbolCount=\(mids.count, privacy: .public)")
-                    await onAllMidsUpdate(mids)
+                    if channel == "allMids" {
+                        let envelope = try Self.decodeHyperliquidMessage(from: incoming)
+                        if let mids = envelope.data {
+                            hyperliquidLogger.debug("Hyperliquid allMids symbolCount=\(mids.count, privacy: .public)")
+                            await onAllMidsUpdate(mids)
+                        }
+                    } else if channel == "activeAssetCtx",
+                              let data = json["data"] as? [String: Any],
+                              let coin = data["coin"] as? String,
+                              let ctx = data["ctx"] as? [String: Any],
+                              let midPxStr = ctx["midPx"] as? String,
+                              let midPx = Double(midPxStr) {
+                        let prevDayPx = (ctx["prevDayPx"] as? String).flatMap(Double.init) ?? midPx
+                        hyperliquidLogger.debug("Hyperliquid activeAssetCtx coin=\(coin, privacy: .public) midPx=\(midPx, privacy: .public)")
+                        await onAssetCtxUpdate(coin, midPx, prevDayPx)
+                    } else {
+                        hyperliquidLogger.debug("Hyperliquid message ignored channel=\(channel, privacy: .public)")
+                    }
                 }
-            } else if channel == "activeAssetCtx",
-                      let data = json["data"] as? [String: Any],
-                      let coin = data["coin"] as? String,
-                      let ctx = data["ctx"] as? [String: Any],
-                      let midPxStr = ctx["midPx"] as? String,
-                      let midPx = Double(midPxStr) {
-                let prevDayPx = (ctx["prevDayPx"] as? String).flatMap(Double.init) ?? midPx
-                hyperliquidLogger.debug("Hyperliquid activeAssetCtx coin=\(coin, privacy: .public) midPx=\(midPx, privacy: .public)")
-                await onAssetCtxUpdate(coin, midPx, prevDayPx)
-            } else {
-                hyperliquidLogger.debug("Hyperliquid message ignored channel=\(channel, privacy: .public)")
             }
+            group.addTask {
+                try await Self.pingLoop(task: task)
+            }
+            try await group.waitForAll()
         }
     }
 
-    private static func decodeHyperliquidMessage(from message: URLSessionWebSocketTask.Message) throws -> HyperliquidWebSocketMessage {
+    private nonisolated static func decodeHyperliquidMessage(from message: URLSessionWebSocketTask.Message) throws -> HyperliquidWebSocketMessage {
         let data: Data
 
         switch message {
